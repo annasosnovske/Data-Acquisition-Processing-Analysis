@@ -295,7 +295,7 @@ def wrap_make_daily(collection, start_date):
     
     
 def get_NLDAS_hourly(basin_polygon_coords, begin_date = '2025-12-30', end_date = '2025-12-31'):
-    import ee
+    import ee 
     print("Authenticating with Earth Engine...")
     ee.Authenticate()
     print("Initializing Earth Engine...")
