@@ -332,6 +332,60 @@ def get_all_metrics(image, basin_polygon):
         maxPixels=1e9
     )
     return ee.Feature(None, stats).set('date', image.date().format())
+
+def get_MODIS_daily(basin_polygon_coords, begin_date = '2018-04-01', end_date = '2018-05-01'):
+    import ee
+    print("Authenticating with Earth Engine...")
+    ee.Authenticate()
+    print("Initializing Earth Engine...")
+    ee.Initialize()
+    print("Earth Engine initialized successfully.")
+    basin_polygon = ee.Geometry.Polygon(basin_polygon_coords)
+    #Load and filter the MODIS Collection
+    MODIS_collection = (ee.ImageCollection("MODIS/061/MOD10A1")
+    .filterBounds(basin_polygon)
+    .filterDate(begin_date, end_date) # Define your timeframe
+    )
+    
+    results = MODIS_collection.map(lambda img: get_all_metrics(img, basin_polygon)).getInfo()
+
+    df = pd.DataFrame([f['properties'] for f in results['features']])
+        
+    # Reorder columns to put date first
+    cols = ['date'] + [c for c in df.columns if c != 'date']
+    df = df[cols]
+    df.rename(columns={'date':'Date'}, inplace=True)
+    df.set_index('Date', drop = True, inplace = True)
+    
+    return df
+    
+# Spatial Reduction Function
+def get_all_metrics(image, basin_polygon):
+    import ee
+    ee.Authenticate()
+    ee.Initialize()
+    stats = image.reduceRegion(
+        reducer=ee.Reducer.mean(),
+        geometry=basin_polygon,
+        scale=12500,
+        maxPixels=1e9
+    )
+    return ee.Feature(None, stats).set('date', image.date().format())
+
+
+# creats a function that cleans the MODIS data, formats the date, and replaces NaN values with interpolation and removes NDSI_Snow_Cover_Algorithm_Flags_QA, NDSI_Snow_Cover_Basic_QA, NSDI_Snow_Cover_Class, granule_pnt, and orbit_pnt columns
+def clean_MODIS_data(df):
+    # Remove unwanted columns
+    columns_to_remove = ['NDSI_Snow_Cover_Algorithm_Flags_QA', 'NDSI_Snow_Cover_Basic_QA', 'NSDI_Snow_Cover_Class', 'granule_pnt', 'orbit_pnt']
+    df = df.drop(columns=columns_to_remove, errors='ignore')
+    
+    # Convert index to datetime
+    df.index = pd.to_datetime(df.index)
+    
+    # Interpolate missing values
+    df = df.interpolate(method='time')
+    
+    return df
     
 
 if __name__ == "__main__":
